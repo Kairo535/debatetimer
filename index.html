@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>辩论赛计时器 Pro</title>
+<script src="https://image.uc.cn/s/uae/g/3n/mos-production/0915/3.4.17.js"></script>
+<script src="https://image.uc.cn/s/uae/g/3n/mos-production/fontawesome-free-7.1.0-web/js/all.min.js"></script>
+<link href="https://image.uc.cn/s/uae/g/3n/mos-production/fontawesome-free-7.1.0-web/css/fontawesome.min.css" rel="stylesheet"/>
+<script>
+tailwind.config = {
+    darkMode: 'class',
+    theme: {
+        extend: {
+            colors: {
+                pro: {
+                    50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a'
+                },
+                con: {
+                    50: '#fef2f2', 100: '#fee2e2', 500: '#ef4444', 600: '#dc2626', 900: '#7f1d1d'
+                }
+            },
+            animation: {
+                'flash-red': 'flashRed 1s infinite',
+                'pulse-fast': 'pulse 0.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+                flashRed: {
+                    '0%, 100%': { backgroundColor: 'var(--bg-color)' },
+                    '50%': { backgroundColor: '#fee2e2' },
+                }
+            }
+        }
+    }
+}
+</script>
+<style>
+:root {
+    --bg-color: #f3f4f6;
+    --text-color: #1f2937;
+    --card-bg: #ffffff;
+}
+.dark {
+    --bg-color: #111827;
+    --text-color: #f9fafb;
+    --card-bg: #1f2937;
+}
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+}
+.card {
+    background-color: var(--card-bg);
+}
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden font-sans">
+
+<header class="card shadow-sm z-20 px-4 py-3 flex justify-between items-center shrink-0">
+    <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
+            <i class="fa-solid fa-hourglass-half"></i>
+        </div>
+        <h1 class="text-lg font-bold tracking-tight hidden sm:block" id="app-title">辩论赛计时器 Pro</h1>
+    </div>
+    <div class="flex items-center gap-2">
+        <button class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition" onclick="app.toggleLang()" title="Switch Language">
+            <span class="text-xs font-bold w-6 h-6 flex items-center justify-center" id="lang-indicator">EN</span>
+        </button>
+        <button class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition" onclick="app.toggleTheme()" title="Toggle Theme">
+            <i class="fa-solid fa-moon dark:hidden"></i>
+            <i class="fa-solid fa-sun hidden dark:block text-yellow-400"></i>
+        </button>
+        <button class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition" onclick="app.showSettings()" title="Settings">
+            <i class="fa-solid fa-gear"></i>
+        </button>
+    </div>
+</header>
+
+<main class="flex-1 overflow-y-auto relative p-4" id="main-container"></main>
+
+<div class="fixed top-20 right-4 z-50 flex flex-col gap-2 pointer-events-none" id="toast-container"></div>
+
+<div class="fixed inset-0 z-50 hidden flex items-center justify-center modal-overlay opacity-0 transition-opacity duration-300" id="settings-modal">
+    <div class="card w-full max-w-lg rounded-xl shadow-2xl transform scale-95 transition-transform duration-300 m-4 flex flex-col max-h-[90vh]">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 class="text-xl font-bold" data-i18n="settings">设置与历史</h2>
+            <button class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300" onclick="app.closeModal('settings-modal')">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <div class="p-4 overflow-y-auto flex-1 space-y-6">
+            <div class="space-y-3">
+                <h3 class="font-semibold text-sm uppercase text-gray-500" data-i18n="formatConfig">赛制配置</h3>
+                <div class="flex gap-2">
+                    <button class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2" onclick="app.exportConfig()">
+                        <i class="fa-solid fa-download"></i> <span data-i18n="export">导出</span>
+                    </button>
+                    <label class="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-upload"></i> <span data-i18n="import">导入</span>
+                        <input accept=".json" class="hidden" onchange="app.importConfig(this)" type="file"/>
+                    </label>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <h3 class="font-semibold text-sm uppercase text-gray-500" data-i18n="history">历史记录</h3>
+                <div class="space-y-2 max-h-40 overflow-y-auto text-sm" id="history-list">
+                    <p class="text-gray-400 italic text-center py-2" data-i18n="noHistory">暂无记录</p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <h3 class="font-semibold text-sm uppercase text-gray-500" data-i18n="audioSettings">音效设置</h3>
+                <div class="flex items-center justify-between">
+                    <span data-i18n="enableAudio">启用提示音</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input checked class="sr-only peer" id="audio-toggle" onchange="app.toggleAudio()" type="checkbox"/>
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </div>
+                <button class="w-full py-2 text-sm text-blue-500 border border-blue-500 rounded hover:bg-blue-50 dark:hover:bg-gray-800" onclick="app.audioManager.test()">
+                    <i class="fa-solid fa-volume-high mr-1"></i> <span data-i18n="testAudio">测试音效</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="fixed inset-0 z-50 hidden flex items-center justify-center modal-overlay" id="tutorial-modal">
+    <div class="card w-full max-w-md rounded-xl shadow-2xl m-4 overflow-hidden">
+        <div class="p-6 text-center">
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                <i class="fa-solid fa-graduation-cap"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2" data-i18n="welcome">欢迎使用辩论赛计时器</h2>
+            <p class="text-gray-500 mb-6" data-i18n="tutorialIntro">快速上手指南</p>
+            <div class="space-y-4 text-left bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-6">
+                <div class="flex gap-3">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs">1</div>
+                    <p class="text-sm" data-i18n="tutorialStep1">在设置页面配置队伍名称、辩题和赛制。</p>
+                </div>
+                <div class="flex gap-3">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs">2</div>
+                    <p class="text-sm" data-i18n="tutorialStep2">点击"开始辩论"进入计时界面。</p>
+                </div>
+                <div class="flex gap-3">
+                    <div class="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center shrink-0 text-xs">3</div>
+                    <p class="text-sm" data-i18n="tutorialStep3">使用控制按钮管理时间，在自由辩论等环节可切换发言方。</p>
+                </div>
+            </div>
+            <button class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition" data-i18n="startDebate" onclick="app.closeModal('tutorial-modal')">开始使用</button>
+        </div>
+    </div>
+</div>
+
+<div class="fixed inset-0 z-50 hidden flex items-center justify-center modal-overlay" id="confirm-modal">
+    <div class="card w-full max-w-sm rounded-xl shadow-2xl p-6 m-4 text-center">
+        <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-xl">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <h3 class="text-lg font-bold mb-2" data-i18n="confirmEndTitle">结束比赛？</h3>
+        <p class="text-gray-500 mb-6 text-sm" data-i18n="confirmEnd">确定要结束当前比赛并返回主页吗？</p>
+        <div class="flex gap-3">
+            <button class="flex-1 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition" data-i18n="cancel" onclick="app.closeModal('confirm-modal')">取消</button>
+            <button class="flex-1 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition" data-i18n="endDebate" onclick="app.endDebateConfirmed()">结束</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const PRESETS = {
+    'xin-guo-bian': [
+        { name: '陈词1 (开篇立论)', type: 'speech', side: 'pro', duration: 180 },
+        { name: '质询1', type: 'cross-exam', side: 'con', duration: 120 },
+        { name: '陈词2 (开篇立论)', type: 'speech', side: 'con', duration: 180 },
+        { name: '质询2', type: 'cross-exam', side: 'pro', duration: 120 },
+        { name: '陈词3 (驳论)', type: 'speech', side: 'con', duration: 120 },
+        { name: '陈词4 (驳论)', type: 'speech', side: 'pro', duration: 120 },
+        { name: '对辩环节', type: 'crossfire', side: 'both', duration: 180 },
+        { name: '盘问1', type: 'cross-exam', side: 'pro', duration: 90 },
+        { name: '盘问2', type: 'cross-exam', side: 'con', duration: 90 },
+        { name: '质询小结1', type: 'speech', side: 'pro', duration: 120 },
+        { name: '质询小结2', type: 'speech', side: 'con', duration: 120 },
+        { name: '自由辩论', type: 'free-debate', side: 'both', duration: 180 },
+        { name: '观众提问', type: 'other', side: 'other', duration: 90 },
+        { name: '评委点评', type: 'other', side: 'other', duration: 300 },
+        { name: '总结陈词1', type: 'speech', side: 'con', duration: 180 },
+        { name: '总结陈词2', type: 'speech', side: 'pro', duration: 180 },
+    ],
+    'oregon': [
+        { name: '立论 (正)', type: 'speech', side: 'pro', duration: 180 },
+        { name: '立论 (反)', type: 'speech', side: 'con', duration: 180 },
+        { name: '驳论 (正)', type: 'speech', side: 'pro', duration: 120 },
+        { name: '驳论 (反)', type: 'speech', side: 'con', duration: 120 },
+        { name: '质询 (正)', type: 'cross-exam', side: 'pro', duration: 90 },
+        { name: '质询 (反)', type: 'cross-exam', side: 'con', duration: 90 },
+        { name: '自由辩论', type: 'free-debate', side: 'both', duration: 240 },
+        { name: '总结陈词 (反)', type: 'speech', side: 'con', duration: 180 },
+        { name: '总结陈词 (正)', type: 'speech', side: 'pro', duration: 180 },
+    ],
+    'bp': [
+        { name: 'PM Speech', type: 'speech', side: 'pro', duration: 420 },
+        { name: 'LO Speech', type: 'speech', side: 'con', duration: 420 },
+        { name: 'DPM Speech', type: 'speech', side: 'pro', duration: 420 },
+        { name: 'DLO Speech', type: 'speech', side: 'con', duration: 420 },
+        { name: 'MG Speech', type: 'speech', side: 'pro', duration: 420 },
+        { name: 'MO Speech', type: 'speech', side: 'con', duration: 420 },
+        { name: 'OW Speech (Gov)', type: 'speech', side: 'pro', duration: 420 },
+        { name: 'OW Speech (Opp)', type: 'speech', side: 'con', duration: 420 },
+    ]
+};
+
+const I18N = {
+    zh: {
+        appTitle: "辩论赛计时器 Pro",
+        basicInfo: "基本信息",
+        proTeam: "正方队伍",
+        conTeam: "反方队伍",
+        topic: "比赛主题",
+        formatConfig: "赛制配置",
+        import: "导入",
+        export: "导出",
+        selectTemplate: "选择模板",
+        customFormat: "自定义赛制",
+        addRound: "添加环节",
+        audioSettings: "音效设置",
+        enableAudio: "启用提示音",
+        tutorial: "教程",
+        startDebate: "开始辩论",
+        prevRound: "上一环节",
+        nextRound: "下一环节",
+        start: "开始",
+        pause: "暂停",
+        reset: "重置",
+        welcome: "欢迎使用辩论赛计时器",
+        settings: "设置与历史",
+        history: "历史记录",
+        currentConfig: "当前配置",
+        manualTime: "手动调整时间",
+        apply: "应用",
+        actions: "操作",
+        endDebate: "结束比赛",
+        skip: "跳过",
+        next: "下一步",
+        finish: "完成",
+        roundName: "环节名称",
+        speaker: "发言方",
+        time: "时间(秒)",
+        delete: "删除",
+        confirmEndTitle: "结束比赛？",
+        confirmEnd: "确定要结束当前比赛并返回主页吗？",
+        timeUp: "时间到",
+        proSide: "正方",
+        conSide: "反方",
+        running: "进行中",
+        paused: "已暂停",
+        saved: "已保存",
+        imported: "导入成功",
+        exported: "配置已导出",
+        seconds: "秒",
+        cancel: "取消",
+        testAudio: "测试音效",
+        noHistory: "暂无记录",
+        tutorialIntro: "快速上手指南",
+        tutorialStep1: "在设置页面配置队伍名称、辩题和赛制。",
+        tutorialStep2: "点击“开始辩论”进入计时界面。",
+        tutorialStep3: "使用控制按钮管理时间，在自由辩论等环节可切换发言方。",
+        switchSide: "切换发言方",
+        round: "环节",
+        typeSpeech: "演讲",
+        typeCrossExam: "质询",
+        typeCrossfire: "对辩",
+        typeFree: "自由辩论",
+        typeOther: "其他"
+    },
+    en: {
+        appTitle: "Debate Timer Pro",
+        basicInfo: "Basic Info",
+        proTeam: "Proposition",
+        conTeam: "Opposition",
+        topic: "Topic",
+        formatConfig: "Format Config",
+        import: "Import",
+        export: "Export",
+        selectTemplate: "Select Template",
+        customFormat: "Custom Format",
+        addRound: "Add Round",
+        audioSettings: "Audio Settings",
+        enableAudio: "Enable Sound",
+        tutorial: "Tutorial",
+        startDebate: "Start Debate",
+        prevRound: "Prev",
+        nextRound: "Next",
+        start: "START",
+        pause: "PAUSE",
+        reset: "RESET",
+        welcome: "Welcome to Debate Timer Pro",
+        settings: "Settings & History",
+        history: "History",
+        currentConfig: "Current Config",
+        manualTime: "Set Time",
+        apply: "Apply",
+        actions: "Actions",
+        endDebate: "End Debate",
+        skip: "Skip",
+        next: "Next",
+        finish: "Finish",
+        roundName: "Round Name",
+        speaker: "Speaker",
+        time: "Time (s)",
+        delete: "Delete",
+        confirmEndTitle: "End Debate?",
+        confirmEnd: "End current debate and return to home?",
+        timeUp: "Time's Up",
+        proSide: "Pro",
+        conSide: "Con",
+        running: "Running",
+        paused: "Paused",
+        saved: "Saved",
+        imported: "Imported Successfully",
+        exported: "Config Exported",
+        seconds: "s",
+        cancel: "Cancel",
+        testAudio: "Test Sound",
+        noHistory: "No History",
+        tutorialIntro: "Quick Start Guide",
+        tutorialStep1: "Configure team names, topic, and debate format in the setup page.",
+        tutorialStep2: "Click 'Start Debate' to enter the timer interface.",
+        tutorialStep3: "Use controls to manage time. Switch sides during free debates.",
+        switchSide: "Switch Side",
+        round: "Round",
+        typeSpeech: "Speech",
+        typeCrossExam: "Cross-Exam",
+        typeCrossfire: "Crossfire",
+        typeFree: "Free Debate",
+        typeOther: "Other"
+    }
+};
+
+class AudioManager {
+    constructor() {
+        this.ctx = null;
+        this.enabled = true;
+    }
+    init() {
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+        }
+    }
+    playTone(freq, type, duration, startTime = 0) {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        const now = this.ctx.currentTime + startTime;
+        osc.start(now);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        osc.stop(now + duration);
+    }
+    play30s() { this.init(); this.playTone(880, 'sine', 0.2); }
+    play15s() { this.init(); this.playTone(1174, 'sine', 0.2); setTimeout(()=>this.playTone(1174,'sine',0.2),250); }
+    playTimeUp() { this.init(); this.playTone(440,'square',0.3); this.playTone(440,'square',0.3,0.7); this.playTone(440,'square',0.6,1.8); }
+    test() { this.init(); this.play30s(); setTimeout(()=>this.play15s(),1000); setTimeout(()=>this.playTimeUp(),2500); }
+}
+
+const app = {
+    state: {
+        lang: 'zh', theme: 'light', proTeam: '正方', conTeam: '反方', topic: '', rounds: [],
+        currentRoundIndex: 0, isRunning: false, timerInterval: null,
+        roundState: { proTime:0, conTime:0, activeSide:'pro' },
+        history: [], audioEnabled: true
+    },
+    audioManager: new AudioManager(),
+    init(){
+        const savedLang = localStorage.getItem('debateTimer_lang');
+        if(savedLang) this.state.lang = savedLang;
+        const savedTheme = localStorage.getItem('debateTimer_theme');
+        if(savedTheme){ this.state.theme = savedTheme; document.documentElement.classList.toggle('dark',savedTheme==='dark'); }
+        const savedHistory = localStorage.getItem('debateTimer_history');
+        if(savedHistory) this.state.history = JSON.parse(savedHistory);
+        const savedAudio = localStorage.getItem('debateTimer_audio');
+        if(savedAudio!==null){ this.state.audioEnabled=JSON.parse(savedAudio); this.audioManager.enabled=this.state.audioEnabled;
+            document.getElementById('audio-toggle').checked=this.state.audioEnabled; }
+        if(!localStorage.getItem('debateTimer_visited')){
+            setTimeout(()=>this.openModal('tutorial-modal'),500); localStorage.setItem('debateTimer_visited','true');
+        }
+        this.renderSetup(); this.updateUIText();
+        document.addEventListener('keydown',e=>{
+            if(document.querySelector('#settings-modal:not(.hidden)')||document.querySelector('#confirm-modal:not(.hidden)'))return;
+            if(e.code==='Space'){e.preventDefault(); this.toggleTimer();}
+            else if(e.code==='ArrowRight')this.nextRound();
+            else if(e.code==='ArrowLeft')this.prevRound();
+        });
+    },
+    saveState(){
+        localStorage.setItem('debateTimer_lang',this.state.lang);
+        localStorage.setItem('debateTimer_theme',this.state.theme);
+        localStorage.setItem('debateTimer_audio',JSON.stringify(this.state.audioEnabled));
+        localStorage.setItem('debateTimer_history',JSON.stringify(this.state.history));
+    },
+    toggleLang(){
+        this.state.lang = this.state.lang==='zh'?'en':'zh';
+        document.getElementById('lang-indicator').innerText=this.state.lang.toUpperCase();
+        this.updateUIText(); this.saveState();
+        if(document.getElementById('setup-view'))this.renderSetup();
+        if(document.getElementById('timer-view'))this.renderTimer();
+    },
+    toggleTheme(){
+        this.state.theme=this.state.theme==='light'?'dark':'light';
+        document.documentElement.classList.toggle('dark');
+        this.saveState();
+    },
+    toggleAudio(){
+        this.state.audioEnabled=!this.state.audioEnabled;
+        this.audioManager.enabled=this.state.audioEnabled;
+        this.saveState();
+    },
+    t(key){ return I18N[this.state.lang][key]||key; },
+    updateUIText(){
+        document.querySelectorAll('[data-i18n]').forEach(el=>{
+            const key=el.getAttribute('data-i18n');
+            el.innerText=this.t(key);
+        });
+        document.getElementById('lang-indicator').innerText=this.state.lang.toUpperCase();
+    },
+    renderSetup(){
+        const c=document.getElementById('main-container');
+        c.innerHTML=`<div id="setup-view" class="max-w-3xl mx-auto space-y-6 pb-20">
+<div class="card p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+<h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-circle-info text-blue-500"></i>${this.t('basicInfo')}</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${this.t('proTeam')}</label>
+<input type="text" id="input-pro" value="${this.state.proTeam}" class="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"></div>
+<div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${this.t('conTeam')}</label>
+<input type="text" id="input-con" value="${this.state.conTeam}" class="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"></div>
+<div class="md:col-span-2"><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">${this.t('topic')}</label>
+<input type="text" id="input-topic" value="${this.state.topic}" placeholder="${this.t('topic')}" class="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition"></div>
+</div></div>
+<div class="card p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+<div class="flex justify-between items-center mb-4">
+<h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-list-check text-green-500"></i>${this.t('formatConfig')}</h2>
+<select id="preset-select" onchange="app.loadPreset(this.value)" class="text-sm p-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 outline-none">
+<option value="">${this.t('selectTemplate')}</option>
+<option value="xin-guo-bian">新国辩标准赛制</option>
+<option value="oregon">奥瑞冈赛制</option>
+<option value="bp">BP 赛制</option>
+</select></div>
+<div id="rounds-list" class="space-y-2 mb-4 max-h-60 overflow-y-auto pr-2"></div>
+<button onclick="app.addRound()" class="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-500 transition flex items-center justify-center gap-2">
+<i class="fa-solid fa-plus"></i>${this.t('addRound')}</button></div>
+<button onclick="app.startDebate()" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xl font-bold rounded-xl shadow-lg transform active:scale-95 transition flex items-center justify-center gap-3">
+<i class="fa-solid fa-play"></i>${this.t('startDebate')}</button>
+<div class="text-center">
+<button onclick="app.openModal('tutorial-modal')" class="text-sm text-gray-500 hover:text-blue-500 underline">${this.t('tutorial')}</button>
+</div></div>`;
+        this.renderRoundsList();
+    },
+    loadPreset(key){ if(!key||!PRESETS[key])return; this.state.rounds=JSON.parse(JSON.stringify(PRESETS[key])); this.renderRoundsList(); },
+    renderRoundsList(){
+        const l=document.getElementById('rounds-list');
+        if(this.state.rounds.length===0){ l.innerHTML=`<div class="text-center text-gray-400 py-4 text-sm">${this.t('customFormat')}</div>`; return; }
+        l.innerHTML=this.state.rounds.map((r,i)=>`
+<div class="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 p-2 rounded group">
+<span class="text-xs font-mono text-gray-400 w-6 text-center">${i+1}</span>
+<input type="text" value="${r.name}" onchange="app.updateRound(${i},'name',this.value)" class="flex-1 bg-transparent border-none text-sm focus:ring-0 p-0 dark:text-white">
+<select onchange="app.updateRound(${i},'type',this.value)" class="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5">
+<option value="speech" ${r.type==='speech'?'selected':''}>${this.t('typeSpeech')}</option>
+<option value="cross-exam" ${r.type==='cross-exam'?'selected':''}>${this.t('typeCrossExam')}</option>
+<option value="crossfire" ${r.type==='crossfire'?'selected':''}>${this.t('typeCrossfire')}</option>
+<option value="free-debate" ${r.type==='free-debate'?'selected':''}>${this.t('typeFree')}</option>
+<option value="other" ${r.type==='other'?'selected':''}>${this.t('typeOther')}</option>
+</select>
+<input type="number" value="${r.duration}" onchange="app.updateRound(${i},'duration',parseInt(this.value))" class="w-16 text-sm bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 text-right">
+<span class="text-xs text-gray-500">s</span>
+<button onclick="app.removeRound(${i})" class="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition px-2">
+<i class="fa-solid fa-trash"></i></button></div>`).join('');
+    },
+    addRound(){ this.state.rounds.push({name:this.t('round'),type:'speech',side:'pro',duration:180}); this.renderRoundsList();
+        setTimeout(()=>{const l=document.getElementById('rounds-list'); l.scrollTop=l.scrollHeight;},50); },
+    removeRound(i){ this.state.rounds.splice(i,1); this.renderRoundsList(); },
+    updateRound(i,f,v){ this.state.rounds[i][f]=v; },
+    startDebate(){
+        this.state.proTeam=document.getElementById('input-pro').value||this.t('proSide');
+        this.state.conTeam=document.getElementById('input-con').value||this.t('conSide');
+        this.state.topic=document.getElementById('input-topic').value;
+        if(this.state.rounds.length===0){ this.showToast('请至少添加一个环节','error'); return; }
+        this.state.currentRoundIndex=0; this.state.isRunning=false; this.initRoundState(0);
+        this.addToHistory(); this.renderTimer();
+    },
+    addToHistory(){
+        const r={date:new Date().toISOString(),pro:this.state.proTeam,con:this.state.conTeam,topic:this.state.topic,rounds:this.state.rounds.length};
+        this.state.history.unshift(r); if(this.state.history.length>20)this.state.history.pop(); this.saveState();
+    },
+    initRoundState(i){
+        const r=this.state.rounds[i];
+        this.state.roundState={proTime:r.duration,conTime:r.duration,activeSide:r.side==='con'?'con':'pro'};
+        if(r.side==='con')this.state.roundState.activeSide='con';
+        if(r.type==='other')this.state.roundState.activeSide='other';
+    },
+    renderTimer(){
+        const c=document.getElementById('main-container');
+        const r=this.state.rounds[this.state.currentRoundIndex];
+        const t=this.getActiveTime();
+        const total=r.duration;
+        const p=Math.max(0,(t/total)*100);
+        let tc='text-gray-800 dark:text-white';
+        let bc='bg-blue-500';
+        let bg='';
+        if(t<=0){ tc='text-red-600 font-bold'; bc='bg-red-600'; bg='animate-flash-red'; }
+        else if(t<=30){ tc='text-red-500'; bc='bg-red-500'; }
+        else if(t<=60){ tc='text-yellow-600 dark:text-yellow-400'; bc='bg-yellow-500'; }
+        const ipa=this.state.roundState.activeSide==='pro';
+        const ica=this.state.roundState.activeSide==='con';
+        const ib=r.type==='free-debate'||r.type==='crossfire';
+        c.innerHTML=`<div id="timer-view" class="h-full flex flex-col ${bg}">
+<div class="text-center mb-4 shrink-0">
+<div class="inline-block px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">
+${this.t('round')} ${this.state.currentRoundIndex+1}/${this.state.rounds.length}</div>
+<h2 class="text-xl md:text-2xl font-bold truncate px-4">${r.name}</h2>
+<p class="text-sm text-gray-500 truncate px-4">${this.state.topic}</p></div>
+<div class="flex-1 grid grid-cols-2 gap-4 px-4 min-h-0 mb-4">
+<div class="card rounded-xl shadow-md flex flex-col items-center justify-center p-4 transition-all duration-300 border-2 ${ipa?'border-pro-500 bg-pro-50 dark:bg-pro-900/20 transform scale-105':'border-transparent opacity-60 grayscale'}">
+<div class="text-pro-600 dark:text-pro-400 font-bold mb-1 text-sm uppercase tracking-wider">${this.t('proSide')}</div>
+<div class="text-lg font-bold truncate w-full text-center mb-2">${this.state.proTeam}</div>
+<div class="text-4xl md:text-5xl font-mono font-bold ${ipa?tc:'text-gray-400'}">${this.formatTime(this.state.roundState.proTime)}</div></div>
+<div class="card rounded-xl shadow-md flex flex-col items-center justify-center p-4 transition-all duration-300 border-2 ${ica?'border-con-500 bg-con-50 dark:bg-con-900/20 transform scale-105':'border-transparent opacity-60 grayscale'}">
+<div class="text-con-600 dark:text-con-400 font-bold mb-1 text-sm uppercase tracking-wider">${this.t('conSide')}</div>
+<div class="text-lg font-bold truncate w-full text-center mb-2">${this.state.conTeam}</div>
+<div class="text-4xl md:text-5xl font-mono font-bold ${ica?tc:'text-gray-400'}">${this.formatTime(this.state.roundState.conTime)}</div></div></div>
+<div class="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-6 overflow-hidden px-4">
+<div class="h-full ${bc} transition-all duration-1000 ease-linear" style="width:${p}%"></div></div>
+<div class="px-4 pb-6 space-y-4 shrink-0">
+<div class="flex justify-center gap-4">
+<button onclick="app.prevRound()" class="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center text-xl transition shadow-sm" ${this.state.currentRoundIndex===0?'disabled opacity-50':''}>
+<i class="fa-solid fa-backward-step"></i></button>
+<button onclick="app.toggleTimer()" class="w-20 h-20 rounded-full ${this.state.isRunning?'bg-yellow-500 hover:bg-yellow-600':'bg-green-500 hover:bg-green-600'} text-white text-3xl shadow-lg flex items-center justify-center transition transform active:scale-95">
+<i class="fa-solid ${this.state.isRunning?'fa-pause':'fa-play'} pl-1"></i></button>
+<button onclick="app.nextRound()" class="w-14 h-14 rounded-full bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center text-xl transition shadow-sm" ${this.state.currentRoundIndex===this.state.rounds.length-1?'disabled opacity-50':''}>
+<i class="fa-solid fa-forward-step"></i></button></div>
+<div class="flex justify-between items-center px-4">
+<button onclick="app.resetCurrentRound()" class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1">
+<i class="fa-solid fa-rotate-left"></i>${this.t('reset')}</button>
+${ib?`<button onclick="app.switchSide()" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-bold shadow-md transition flex items-center gap-2 animate-pulse-fast">
+<i class="fa-solid fa-arrow-right-arrow-left"></i>${this.t('switchSide')}</button>`:''}
+<button onclick="app.openModal('confirm-modal')" class="text-sm text-red-500 hover:text-red-700 flex items-center gap-1">
+<i class="fa-solid fa-stop"></i>${this.t('endDebate')}</button></div></div></div>`;
+    },
+    getActiveTime(){
+        const s=this.state.roundState.activeSide;
+        if(s==='pro')return this.state.roundState.proTime;
+        if(s==='con')return this.state.roundState.conTime;
+        return 0;
+    },
+    setActiveTime(v){
+        const s=this.state.roundState.activeSide;
+        if(s==='pro')this.state.roundState.proTime=v;
+        if(s==='con')this.state.roundState.conTime=v;
+    },
+    formatTime(s){
+        const m=Math.floor(s/60);
+        const sc=Math.floor(s%60);
+        return `${m.toString().padStart(2,'0')}:${sc.toString().padStart(2,'0')}`;
+    },
+    toggleTimer(){ this.state.isRunning?this.pauseTimer():this.startTimer(); },
+    startTimer(){
+        if(this.state.isRunning)return;
+        this.audioManager.init();
+        this.state.isRunning=true; this.renderTimer();
+        this.state.timerInterval=setInterval(()=>{
+            const r=this.state.rounds[this.state.currentRoundIndex];
+            if(r.type!=='other'){
+                let t=this.getActiveTime();
+                if(t===30)this.audioManager.play30s();
+                if(t===15)this.audioManager.play15s();
+                if(t===0){ this.audioManager.playTimeUp(); this.state.isRunning=false; clearInterval(this.state.timerInterval); this.renderTimer(); return; }
+                if(t>0)this.setActiveTime(t-1);
+            }
+            this.updateTimerDOM();
+        },1000);
+    },
+    pauseTimer(){ this.state.isRunning=false; clearInterval(this.state.timerInterval); this.renderTimer(); },
+    updateTimerDOM(){
+        const t=this.getActiveTime();
+        const r=this.state.rounds[this.state.currentRoundIndex];
+        const total=r.duration;
+        const p=Math.max(0,(t/total)*100);
+        const d=document.querySelector(`.border-pro-500 .text-4xl, .border-con-500 .text-4xl`);
+        if(d)d.innerText=this.formatTime(t);
+        const b=document.querySelector('.h-full.transition-all');
+        if(b)b.style.width=`${p}%`;
+        if(t<=30&&t>0){
+            if(b&&!b.classList.contains('bg-red-500')){
+                b.classList.remove('bg-blue-500','bg-yellow-500'); b.classList.add('bg-red-500');
+                if(d){d.classList.remove('text-gray-800','dark:text-white','text-yellow-600'); d.classList.add('text-red-500');}
+            }
+        }
+    },
+    resetCurrentRound(){ this.pauseTimer(); this.initRoundState(this.state.currentRoundIndex); this.renderTimer(); },
+    switchSide(){
+        const r=this.state.rounds[this.state.currentRoundIndex];
+        if(r.type!=='free-debate'&&r.type!=='crossfire')return;
+        this.state.roundState.activeSide=this.state.roundState.activeSide==='pro'?'con':'pro';
+        this.renderTimer();
+    },
+    nextRound(){
+        if(this.state.currentRoundIndex>=this.state.rounds.length-1)return;
+        this.pauseTimer(); this.state.currentRoundIndex++; this.initRoundState(this.state.currentRoundIndex); this.renderTimer();
+    },
+    prevRound(){
+        if(this.state.currentRoundIndex<=0)return;
+        this.pauseTimer(); this.state.currentRoundIndex--; this.initRoundState(this.state.currentRoundIndex); this.renderTimer();
+    },
+    endDebateConfirmed(){ this.closeModal('confirm-modal'); this.pauseTimer(); this.renderSetup(); },
+    showToast(msg,type='success'){
+        const c=document.getElementById('toast-container');
+        const to=document.createElement('div');
+        const cc=type==='error'?'bg-red-500':'bg-green-500';
+        const ic=type==='error'?'fa-circle-exclamation':'fa-circle-check';
+        to.className=`${cc} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 transform translate-x-full transition-transform duration-300 pointer-events-auto`;
+        to.innerHTML=`<i class="fa-solid ${ic}"></i><span>${msg}</span>`;
+        c.appendChild(to);
+        requestAnimationFrame(()=>{to.classList.remove('translate-x-full');});
+        setTimeout(()=>{to.classList.add('translate-x-full'); setTimeout(()=>to.remove(),300);},3000);
+    },
+    openModal(id){
+        const m=document.getElementById(id);
+        m.classList.remove('hidden'); void m.offsetWidth;
+        m.classList.remove('opacity-0');
+        m.querySelector('div').classList.remove('scale-95');
+        m.querySelector('div').classList.add('scale-100');
+    },
+    closeModal(id){
+        const m=document.getElementById(id);
+        m.classList.add('opacity-0');
+        m.querySelector('div').classList.remove('scale-100');
+        m.querySelector('div').classList.add('scale-95');
+        setTimeout(()=>{m.classList.add('hidden');},300);
+    },
+    showSettings(){ this.renderHistory(); this.openModal('settings-modal'); },
+    renderHistory(){
+        const l=document.getElementById('history-list');
+        if(this.state.history.length===0){ l.innerHTML=`<p class="text-gray-400 italic text-center py-2">${this.t('noHistory')}</p>`; return; }
+        l.innerHTML=this.state.history.map(h=>`
+<div class="flex justify-between items-center bg-white dark:bg-gray-800 p-2 rounded border border-gray-100 dark:border-gray-700">
+<div class="truncate"><div class="font-bold text-xs">${h.pro} vs ${h.con}</div>
+<div class="text-[10px] text-gray-500">${new Date(h.date).toLocaleString()}</div></div>
+<div class="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">${h.rounds} ${this.t('round')}</div></div>`).join('');
+    },
+    exportConfig(){
+        const d={proTeam:this.state.proTeam,conTeam:this.state.conTeam,topic:this.state.topic,rounds:this.state.rounds,exportDate:new Date().toISOString()};
+        const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+        const u=URL.createObjectURL(b);
+        const a=document.createElement('a');
+        a.href=u; a.download=`debate-config-${Date.now()}.json`; a.click();
+        URL.revokeObjectURL(u); this.showToast(this.t('exported'));
+    },
+    importConfig(i){
+        const f=i.files[0]; if(!f)return;
+        const r=new FileReader();
+        r.onload=e=>{
+            try{
+                const d=JSON.parse(e.target.result);
+                if(d.rounds&&Array.isArray(d.rounds)){
+                    this.state.proTeam=d.proTeam||this.t('proSide');
+                    this.state.conTeam=d.conTeam||this.t('conSide');
+                    this.state.topic=d.topic||'';
+                    this.state.rounds=d.rounds;
+                    if(document.getElementById('setup-view')){
+                        document.getElementById('input-pro').value=this.state.proTeam;
+                        document.getElementById('input-con').value=this.state.conTeam;
+                        document.getElementById('input-topic').value=this.state.topic;
+                        this.renderRoundsList();
+                    }
+                    this.showToast(this.t('imported'));
+                    this.closeModal('settings-modal');
+                }else throw new Error('err');
+            }catch(err){ this.showToast('导入失败:格式错误','error'); }
+        };
+        r.readAsText(f); i.value='';
+    }
+};
+
+window.addEventListener('DOMContentLoaded',()=>{ app.init(); });
+</script>
+</body>
+</html>
